@@ -1,0 +1,11 @@
+version: 1
+builder:
+  configs:
+    - documentation_targets: [Paint]
+      platform: macos
+    - documentation_targets: [Paint]
+      platform: ios
+    - documentation_targets: [Paint]
+      platform: tvos
+    - documentation_targets: [Paint]
+      platform: watchos
