@@ -2,7 +2,7 @@
 
 # Paint
 
-Paint is a color library for Swift, with platform support for SwiftUI/UIKit/AppKit. It converts between color models, adjusts colors perceptually in OKLCH, measures contrast with WCAG 2 and APCA, and generates palettes. It is wide gamut and HDR aware throughout, so Display P3 and HDR colors keep their gamut and brightness. `PaintUI` adds a UIKit color picker that edits colors in any of those color spaces.
+Paint is a color library for Swift, with platform support for SwiftUI/UIKit/AppKit. It converts between color models, adjusts colors perceptually in OKLCH, measures contrast with WCAG 2 and APCA, and generates palettes, scales and mesh gradients. It is wide gamut and HDR aware throughout, so Display P3 and HDR colors keep their gamut and brightness. `PaintUI` adds a UIKit color picker that edits colors in any of those color spaces.
 
 
 ## See Also
@@ -102,21 +102,45 @@ let dark = accent.adapted(from: HEXColor("#FFFFFF"), to: HEXColor("#000000"))
 - `adjusted(toMinimum:against:)` changes only the lightness, as little as needed, to meet a minimum contrast
 - `increased(against:by:)` raises APCA contrast, for increased contrast variants
 - `luminance`, `isDark` and `isLight` measure a color by the algorithm's luminance, and pick text colors
+- `preferredForeground(among:minimum:)` picks the first text color, in order of preference, that meets a minimum on a background. If none does, it picks the one with the most contrast
+- `tintedForeground(minimum:)` gives text with the hue of its background, such as dark blue on a light blue badge, where black looks harsh
 - `simulating(_:severity:)` and `daltonized(for:severity:)` simulate and correct for a `ColorVisionDeficiency`
 
 ```swift
 let passesAA = text.contrast(.wcag).against(background).meets(.aa)
 let readable = text.contrast(.apca).adjusted(toMinimum: 60, against: background)
+let label = background.contrast(.apca).preferredForeground(among: [accent, white, black], minimum: 60)
+let badgeText = badge.contrast(.wcag).tintedForeground(minimum: .aa)
 ```
 
-`distance(to:)` and `deltaE2000(to:)` measure how different two colors look, and `nearest(to:)` and `removingNearDuplicates(threshold:)` find and remove similar colors in a collection.
+`distance(to:)` and `deltaE2000(to:)` measure how different two colors look, and `nearest(to:)` and `removingNearDuplicates(threshold:)` find and remove similar colors in a collection. `minimumDistance(simulating:)` and `isDistinguishable(threshold:for:)` check that colors, such as the series of a chart, can still be told apart with protanopia, deuteranopia or tritanopia.
+
+```swift
+let isSafe = chartColors.isDistinguishable() // normal vision and each dichromacy
+```
+
+`toDescriptiveName()` describes a color in plain English, such as `"dark grayish blue"`, for VoiceOver labels and color pickers, and `formatted(.name)` writes it as a format style. `toNearestCSSNamedColor()` finds the closest CSS name, such as `steelblue`.
+
+### Shadows and Elevation
+
+- `shadow(opacity:)` gives a shadow for content on a background. The shadow keeps the background's hue, so it looks rich instead of gray and dirty
+- `elevated(level:)` lightens dark surfaces for elevation levels `1` to `5`, as in iOS and Material dark appearances, where shadows are hard to see
+- `elevated(level:tint:)` tints raised surfaces towards an accent in both appearances
+
+```swift
+Card()
+    .background(surface.elevated(level: 2).toColor())
+    .shadow(color: background.shadow().toColor(), radius: 12, y: 6)
+```
 
 ### Palettes and Generation
 
-- `TonalScale` generates `50` to `950` shades from a seed color, like Tailwind CSS
+- `TonalScale` generates `50` to `950` shades from a seed color, like Tailwind CSS. With `hueShift`, highlights turn warmer and shadows cooler, as painters shade, so the scale looks less flat
 - `harmony(_:)` generates complementary, analogous, triadic and other `ColorHarmony` schemes
 - `OKLCHColor.categorical(count:)` generates evenly spaced, distinct colors for charts
 - `OKLCHColor(hashing:)` generates a stable color from a string, such as a user name
+- `ColorScale` maps numbers to colors for heat maps and legends: `sequential(_:domain:)` for low to high values, and `diverging(from:to:domain:midpoint:)` for values on either side of a midpoint. Lightness changes evenly, so the order is still clear in grayscale or with color blindness
+- `sorted(by:)` sorts colors by `.hue`, `.lightness`, `.chroma` or `.stepped`, which groups hues into slices and alternates light to dark and dark to light between them, for swatch grids
 - `ColorGradient` interpolates in any CSS color space, such as Oklab, OKLCH, LCh (HCL) or HSL, with an optional easing curve, and adds just enough stops to look the same in SwiftUI, Core Animation and Core Graphics, which each blend differently
 
 ```swift
@@ -124,12 +148,41 @@ let blue = TonalScale(seed: HEXColor("#3B82F6"))
 let background = blue[50]
 let text = blue[900]
 
+let warm = TonalScale(seed: HEXColor("#22C55E"), hueShift: .degrees(12))
+
 let triad = accent.harmony(.triadic)
+
+let heat = ColorScale.sequential(HEXColor("#E4572E"), domain: 0...100)
+let cell = heat(42)
+let change = ColorScale.diverging(from: HEXColor("#2563EB"), to: HEXColor("#EA580C"), domain: -20...100, midpoint: 0)
+
+let swatches = palette.sorted(by: .stepped)
 
 let gradient = ColorGradient(colors: [HEXColor("#0033FF"), HEXColor("#FFE600")], in: .oklch)
 let shade = ColorGradient(from: HEXColor("#000000"), to: RGBAColor(red: 0, green: 0, blue: 0, alpha: 0), curve: .easeInOut)
 LinearGradient(gradient: gradient.toGradient(), startPoint: .leading, endPoint: .trailing)
 gradientLayer.setGradient(gradient) // CAGradientLayer
+```
+
+### Gradients, Meshes and Grain
+
+- `ColorGradient.subtle(_:)` turns one color into a gentle gradient for buttons, cards and icons: lighter and warmer at one end, darker and cooler at the other, with the color itself in the middle
+- `ColorMesh` is a grid of colors for SwiftUI's `MeshGradient`. `MeshGradient` blends in sRGB or its own perceptual space, so `toMeshGradient()` adds points in between, with colors interpolated in Oklab, OKLCH or any other `ColorInterpolationSpace`. `ColorMesh.ambient(colors:)`, `ambient(around:)` and `ColorMesh(swatches:)` generate organic backdrops, such as behind album art. The same seed always gives the same mesh
+- `ColorGradient.toCGImage(width:height:)` renders a gradient into an 8-bit image with dithering, which removes the banding of subtle gradients on OLED displays
+- `GrainTexture` is a tileable film grain texture to overlay on flat fills
+
+```swift
+let mesh = ColorMesh.ambient(colors: [HEXColor("#FF5E3A"), HEXColor("#FF9500"), HEXColor("#5856D6")], width: 3, height: 3)
+mesh.toMeshGradient() // iOS 18, macOS 15
+
+let image = ColorGradient(colors: [HEXColor("#1A1A1A"), HEXColor("#262626")]).toCGImage(width: 390, height: 844)
+
+background.overlay(
+    GrainTexture().toImage()?
+        .resizable(resizingMode: .tile)
+        .blendMode(.overlay)
+        .opacity(0.08)
+)
 ```
 
 ### Images
@@ -164,11 +217,12 @@ let hsl = HEXColor("#FF8000").toCSSColor(.hsl) // "hsl(30.118 100% 50%)"
 
 ### Formatting
 
-`formatted(_:)` writes any color with a `ColorFormatStyle`, which also parses HEX and CSS color strings.
+`formatted(_:)` writes any color with a `ColorFormatStyle`, which also parses HEX and CSS color strings. The `.name` style writes the color's `toDescriptiveName()`, for display only, so names don't parse back.
 
 ```swift
 HEXColor("#FF8000").formatted(.hex)       // "FF8000"
 HEXColor("#FF8000").formatted(.css(.hsl)) // "hsl(30.118 100% 50%)"
+HEXColor("#2F3A4F").formatted(.name)      // "dark grayish blue"
 ```
 
 ### Blending and Color Matrices

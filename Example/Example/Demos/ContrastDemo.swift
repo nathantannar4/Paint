@@ -111,8 +111,56 @@ struct ContrastDemo: View {
                     }
                 }
             }
+
+            DemoSection(
+                "Preferred Text Color",
+                caption: "contrast(.apca).preferredForeground(among:minimum:) picks the first candidate, in order of preference, that meets the minimum: here the text color, then white, then black. If none does, it picks the one with the most contrast."
+            ) {
+                LabeledSlider("Minimum (Lc)", value: $preferredMinimum, in: 15...90, digits: 0)
+                let white = RGBAColor(red: 1, green: 1, blue: 1)
+                let black = RGBAColor(red: 0, green: 0, blue: 0)
+                HStack(spacing: 4) {
+                    ForEach(OKLCHColor.categorical(count: 6, lightness: 0.55, chroma: 0.12), id: \.self) { color in
+                        let foreground = color.contrast(.apca).preferredForeground(
+                            among: [text, white, black],
+                            minimum: APCAContrast(rawValue: preferredMinimum)
+                        ) ?? black
+                        Text("Aa")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .background(Color(color), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .foregroundStyle(Color(foreground))
+                    }
+                }
+            }
+
+            DemoSection(
+                "Tinted Text",
+                caption: "contrast(.wcag).tintedForeground(minimum:) gives text in the background's hue, which looks like it belongs on the background, rather than harsh black or white."
+            ) {
+                LabeledSlider("WCAG ratio", value: $tintedMinimum, in: 3...12, digits: 1)
+                HStack(spacing: 4) {
+                    ForEach(Self.badgeColors, id: \.self) { badge in
+                        let tinted = badge.contrast(.wcag).tintedForeground(minimum: WCAGContrast(rawValue: tintedMinimum))
+                        VStack(spacing: 2) {
+                            Text("Badge")
+                                .font(.headline)
+                            Text(tinted.contrast(.wcag).against(badge).description)
+                                .font(.caption2.monospacedDigit())
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 56)
+                        .foregroundStyle(Color(tinted))
+                        .background(Color(badge), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    }
+                }
+            }
         }
     }
+
+    @State private var preferredMinimum = 60.0
+    @State private var tintedMinimum = 4.5
+
+    private static let badgeColors: [HEXColor] = ["#DBEAFE", "#DCFCE7", "#FEF3C7", "#FCE7F3", "#1E3A8A", "#14532D"]
 
     private func sample(text: RGBAColor, background: RGBAColor, title: String, detail: String? = nil) -> some View {
         HStack {

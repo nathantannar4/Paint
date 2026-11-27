@@ -152,7 +152,85 @@ struct GradientsDemo: View {
                 SwatchRow(colors: gradient.colors(count: Int(steps)), height: 36)
                 SwatchRow(colors: gradient.reversed().colors(count: Int(steps)), height: 36)
             }
+
+            DemoSection(
+                "Subtle Gradients",
+                caption: "ColorGradient.subtle(_:lightness:hueShift:) turns one color into a gentle fill: lighter and warmer at the top, darker and cooler at the bottom, with the color itself in the middle. Compare it with the flat fill on the left."
+            ) {
+                LabeledSlider("Lightness", value: $subtleLightness, in: 0...0.15)
+                LabeledSlider("Hue shift (°)", value: $subtleHueShift, in: 0...20, digits: 0)
+                HStack(spacing: 12) {
+                    let buttonColors = [start, middle, end]
+                    ForEach(buttonColors.indices, id: \.self) { index in
+                        let color = buttonColors[index]
+                        HStack(spacing: 6) {
+                            subtleButton(fill: AnyShapeStyle(Color(color)), color: color)
+                            subtleButton(
+                                fill: AnyShapeStyle(LinearGradient(
+                                    gradient: ColorGradient.subtle(color, lightness: subtleLightness, hueShift: .degrees(subtleHueShift)).toGradient(),
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )),
+                                color: color
+                            )
+                        }
+                    }
+                }
+            }
+
+            DemoSection(
+                "Dithering and Grain",
+                caption: "Subtle dark gradients band on 8-bit displays. toCGImage(width:height:) renders a gradient with dithering, noise smaller than one 8-bit step, so the bands disappear. GrainTexture is a tileable noise texture to overlay on flat fills, for a tactile look."
+            ) {
+                LabeledSlider("Grain opacity", value: $grainOpacity, in: 0...0.3)
+                let banding = ColorGradient(colors: [HEXColor("#141414"), HEXColor("#262626")])
+                HStack(spacing: 8) {
+                    ditheredImage(banding, dithered: false, title: "Not dithered")
+                    ditheredImage(banding, dithered: true, title: "Dithered")
+                    Rectangle()
+                        .fill(Color(start))
+                        .overlay {
+                            if let grain = GrainTexture(width: 128, height: 128).toImage() {
+                                grain
+                                    .resizable(resizingMode: .tile)
+                                    .blendMode(.overlay)
+                                    .opacity(grainOpacity)
+                            }
+                        }
+                        .overlay(alignment: .bottomLeading) {
+                            Text("GrainTexture").font(.caption.weight(.semibold)).foregroundStyle(.white).padding(8)
+                        }
+                        .frame(height: 160)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+            }
         }
+    }
+
+    @State private var subtleLightness = 0.05
+    @State private var subtleHueShift = 8.0
+    @State private var grainOpacity = 0.12
+
+    private func subtleButton(fill: AnyShapeStyle, color: RGBAColor) -> some View {
+        Text("Button")
+            .font(.callout.weight(.semibold))
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .foregroundStyle(color.contrast(.apca).isDark ? Color.white : .black)
+            .background(fill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private func ditheredImage(_ gradient: ColorGradient, dithered: Bool, title: String) -> some View {
+        // Rendered at the pixel size of the frame, so each pixel is dithered
+        let image = gradient.toCGImage(width: 300, height: 480, dithered: dithered)
+        return ZStack(alignment: .bottomLeading) {
+            if let image {
+                Image(decorative: image, scale: 3)
+                    .resizable()
+            }
+            Text(title).font(.caption.weight(.semibold)).foregroundStyle(.white).padding(8)
+        }
+        .frame(height: 160)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private static let curves: [(name: String, curve: ColorGradient.Curve)] = [

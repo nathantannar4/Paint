@@ -65,7 +65,7 @@ struct CSSDemo: View {
 
             DemoSection(
                 "Format Styles",
-                caption: "ColorFormatStyle is a Foundation ParseableFormatStyle. color.formatted(.hex) and color.formatted(.css(_:)) write a color, and TextField(value:format:) edits one, parsing any HEX or CSS string with ColorParseStrategy. Press return to commit."
+                caption: "ColorFormatStyle is a Foundation ParseableFormatStyle. color.formatted(.hex), color.formatted(.css(_:)) and color.formatted(.name) write a color, and TextField(value:format:) edits one, parsing any HEX or CSS string with ColorParseStrategy. Press return to commit."
             ) {
                 Picker("Format", selection: $editedFormat) {
                     ForEach(CSSColorFormat.allCases, id: \.self) { Text(".\($0.rawValue)").tag($0) }
@@ -79,6 +79,7 @@ struct CSSDemo: View {
                     ValueRow(".formatted(.hex)", edited.formatted(.hex))
                     ValueRow(".formatted(.css())", edited.formatted(.css()))
                     ValueRow(".formatted(.css(.\(editedFormat.rawValue)))", edited.formatted(.css(editedFormat)))
+                    ValueRow(".formatted(.name)", edited.formatted(.name))
                     let hex = edited.toHEXColor()
                     ValueRow("HEXColor.toString()", hex.toString())
                     ValueRow("toString(includePrefix: true)", hex.toString(includePrefix: true))

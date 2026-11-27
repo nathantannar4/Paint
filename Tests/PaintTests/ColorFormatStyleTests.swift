@@ -31,6 +31,28 @@ final class ColorFormatStyleTests: XCTestCase {
         }
     }
 
+    func testNameFormatting() {
+        XCTAssertEqual(orange.formatted(.name), orange.toDescriptiveName())
+        XCTAssertEqual(ColorFormatStyle.name.format(orange.toRGBAColor()), orange.toDescriptiveName())
+        XCTAssertEqual(HEXColor("#FFFFFF").formatted(.name), "white")
+        XCTAssertEqual(HEXColor("#000000").formatted(.name), "black")
+        // Matches `toDescriptiveName()` for every color model, ignoring alpha
+        let colors: [any ColorConvertible] = [
+            HEXColor("#0A84FF"),
+            HEXColor("#663399"),
+            OKLCHColor(lightness: 0.87, chroma: 0.37, hue: .degrees(142)),
+            RGBAColor(red: 1, green: 0.5, blue: 0, alpha: 0.5),
+            HSLAColor(hue: .degrees(210), saturation: 0.2, lightness: 0.3),
+        ]
+        for color in colors {
+            XCTAssertEqual(color.formatted(.name), color.toDescriptiveName(), "\(color)")
+        }
+        XCTAssertEqual(
+            RGBAColor(red: 1, green: 0.5, blue: 0, alpha: 0.5).formatted(.name),
+            RGBAColor(red: 1, green: 0.5, blue: 0).formatted(.name)
+        )
+    }
+
     func testFormattedAcceptsEveryColorModel() {
         let oklch = OKLCHColor(lightness: 0.7, chroma: 0.15, hue: .degrees(60))
         XCTAssertEqual(oklch.formatted(.hex), oklch.toHEXColor().toString())
@@ -72,10 +94,19 @@ final class ColorFormatStyleTests: XCTestCase {
 
     func testEveryStyleParsesEveryColor() throws {
         // A text field with a HEX style still accepts a named color, and vice versa
-        for style in [ColorFormatStyle.hex, .css(), .css(.oklch)] {
+        for style in [ColorFormatStyle.hex, .css(), .css(.oklch), .name] {
             XCTAssertEqual(style.parseStrategy, ColorParseStrategy())
             XCTAssertEqual(try style.parseStrategy.parse("rebeccapurple").toHEXColor(), "#663399")
             XCTAssertEqual(try style.parseStrategy.parse("FF8000").toHEXColor(), orange)
+        }
+    }
+
+    func testNamesDontParse() {
+        // Descriptive names are for display, so most don't parse back
+        for color: HEXColor in ["#2F3A4F", "#FFC0CB80", "#6B8E23"] {
+            let name = color.formatted(.name)
+            XCTAssertTrue(name.contains(" "), name)
+            XCTAssertThrowsError(try ColorFormatStyle.name.parseStrategy.parse(name), name)
         }
     }
 
@@ -101,7 +132,7 @@ final class ColorFormatStyleTests: XCTestCase {
     }
 
     func testStyleIsCodable() throws {
-        for style in [ColorFormatStyle.hex, .css(), .css(.oklch)] {
+        for style in [ColorFormatStyle.hex, .css(), .css(.oklch), .name] {
             let data = try JSONEncoder().encode(style)
             XCTAssertEqual(try JSONDecoder().decode(ColorFormatStyle.self, from: data), style)
         }

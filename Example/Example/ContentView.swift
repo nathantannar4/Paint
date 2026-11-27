@@ -12,6 +12,8 @@ enum Demo: String, CaseIterable, Identifiable, Hashable {
     case vision
     case palettes
     case gradients
+    case meshes
+    case elevation
     case blending
     case matrices
     case images
@@ -33,6 +35,8 @@ enum Demo: String, CaseIterable, Identifiable, Hashable {
         case .vision: "Color Vision"
         case .palettes: "Palettes"
         case .gradients: "Gradients"
+        case .meshes: "Mesh Gradients"
+        case .elevation: "Shadows & Elevation"
         case .blending: "Blending"
         case .matrices: "Color Matrices"
         case .images: "Image Colors"
@@ -54,6 +58,8 @@ enum Demo: String, CaseIterable, Identifiable, Hashable {
         case .vision: "eye"
         case .palettes: "swatchpalette"
         case .gradients: "rectangle.fill"
+        case .meshes: "square.grid.3x3.fill"
+        case .elevation: "square.stack.3d.down.forward"
         case .blending: "square.2.layers.3d"
         case .matrices: "camera.filters"
         case .images: "photo"
@@ -76,6 +82,8 @@ enum Demo: String, CaseIterable, Identifiable, Hashable {
         case .vision: VisionDemo()
         case .palettes: PalettesDemo()
         case .gradients: GradientsDemo()
+        case .meshes: MeshDemo()
+        case .elevation: ElevationDemo()
         case .blending: BlendingDemo()
         case .matrices: ColorMatrixDemo()
         case .images: ImageColorsDemo()

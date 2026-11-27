@@ -13,6 +13,14 @@ import Foundation
 /// towards the light and dark ends, where saturated colors look garish or don't fit
 /// the gamut. Each color is fitted to ``gamut``.
 ///
+/// Painters shift hue as well as lightness: highlights warm towards yellow, and
+/// shadows cool towards blue. Set ``hueShift`` to do the same, which makes a scale
+/// look richer and less flat:
+///
+/// ```swift
+/// let green = TonalScale(seed: HEXColor("#22C55E"), hueShift: .degrees(12))
+/// ```
+///
 /// ```swift
 /// let blue = TonalScale(seed: HEXColor("#3B82F6"))
 /// let background = blue[50]
@@ -27,6 +35,27 @@ public struct TonalScale: Hashable, Sendable, Codable {
     /// The gamut every color of the scale is fitted to.
     public var gamut: ColorGamut
 
+    /// How far the hue of the lightest and darkest steps turns, towards a warm yellow
+    /// for the lightest and a cool blue for the darkest. `0` by default, so every
+    /// step keeps the hue of the seed.
+    ///
+    /// The shift grows from nothing around step `550` to the full amount at `50` and
+    /// `950`, and never turns past the warm or cool hue. Around `10` to `20` degrees
+    /// is subtle. Only the steps are shifted, not ``color(tone:)``.
+    public var hueShift: ColorHue
+
+    /// The hue that light steps turn towards: a warm yellow.
+    ///
+    /// Hues turn the shorter way around the color wheel, so blues warm through cyan,
+    /// and reds and purples through orange.
+    public static let warmHue = ColorHue.degrees(95)
+
+    /// The hue that dark steps turn towards: a cool blue.
+    ///
+    /// Hues turn the shorter way around the color wheel, so reds cool through
+    /// purple, and yellows and greens through cyan.
+    public static let coolHue = ColorHue.degrees(265)
+
     /// The standard steps: `50`, `100`, `200`, ... `900` and `950`.
     public static let steps = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]
 
@@ -34,10 +63,35 @@ public struct TonalScale: Hashable, Sendable, Codable {
     @inlinable
     public init<C: ColorConvertible>(
         seed: C,
+        hueShift: ColorHue = .zero,
         in gamut: ColorGamut = .displayP3
     ) {
         self.seed = seed.toOKLCHColor()
         self.gamut = gamut
+        self.hueShift = hueShift
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case seed
+        case gamut
+        case hueShift
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.seed = try container.decode(OKLCHColor.self, forKey: .seed)
+        self.gamut = try container.decode(ColorGamut.self, forKey: .gamut)
+        // Scales encoded before `hueShift` existed don't shift
+        self.hueShift = try container.decodeIfPresent(ColorHue.self, forKey: .hueShift) ?? .zero
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(seed, forKey: .seed)
+        try container.encode(gamut, forKey: .gamut)
+        if hueShift != .zero {
+            try container.encode(hueShift, forKey: .hueShift)
+        }
     }
 
     /// The OKLCH lightness and the fraction of the seed's chroma at each anchor step.
@@ -78,9 +132,27 @@ public struct TonalScale: Hashable, Sendable, Codable {
         return OKLCHColor(
             lightness: lightness,
             chroma: seed.chroma * chroma,
-            hue: seed.hue,
+            hue: hue(at: step),
             alpha: seed.alpha
         ).toColorGamut(gamut)
+    }
+
+    /// The hue at a step, turned towards ``warmHue`` or ``coolHue`` by ``hueShift``.
+    private func hue(at step: Double) -> ColorHue {
+        let shift = abs(hueShift.degrees.truncatingRemainder(dividingBy: 360))
+        guard shift > 0 else { return seed.hue }
+        let weight: Double
+        let target: ColorHue
+        if step < 550 {
+            weight = min((550 - step) / 500, 1)
+            target = Self.warmHue
+        } else {
+            weight = min((step - 550) / 400, 1)
+            target = Self.coolHue
+        }
+        let delta = HueInterpolation.shorter.delta(from: seed.hue.degrees, to: target.degrees)
+        let rotation = min(abs(delta), shift * weight)
+        return seed.hue + .degrees(delta < 0 ? -rotation : rotation)
     }
 
     /// The color at a tone, from `0` (black) to `100` (white), like Material Design's
